@@ -2,12 +2,12 @@
 
 #include <fmt/core.h>
 
-namespace monitor {
+namespace Whiteboard {
 
-monitor::monitor(const std::string &executable) {
+Monitor::Monitor(const std::string &executable) : _executable(executable) {
   fmt::print("creating monitor on {}\n", executable);
 }
 
-void monitor::run() { fmt::print("running\n"); }
+void Monitor::run() { fmt::print("running\n"); }
 
-} // namespace monitor
+} // namespace Whiteboard
