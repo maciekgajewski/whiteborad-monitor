@@ -19,12 +19,8 @@ int main(int argc, char **argv) {
   Whiteboard::Monitor::Args args = {executable, "1", "2"};
   Whiteboard::Monitor m = Whiteboard::Monitor::runExecutable(executable, args);
 
-  int instructions = 0;
-  while (m.isRunning()) {
-    m.stepi();
-    instructions++;
-  }
+  auto breakpoint = m.functionBreakpoint("main");
+  m.cont();
 
-  fmt::print("Process {} finished, executed {} instructions\n", executable,
-             instructions);
+  fmt::print("Process {} finished\n", executable);
 }

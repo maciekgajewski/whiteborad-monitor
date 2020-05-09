@@ -43,22 +43,34 @@ Monitor Monitor::runExecutable(const std::string &executable,
 Monitor::Monitor(int pid) {
 
   _childPid = pid;
-
-  int wstatus;
-  ::waitpid(_childPid, &wstatus, 0);
-  if (WIFSTOPPED(wstatus))
-    _running = true;
+  _running = true;
+  wait();
 }
 
-void Monitor::stepi() {
+void Monitor::wait() {
   assert(_running);
-
-  ::ptrace(PTRACE_SINGLESTEP, _childPid, nullptr, nullptr);
 
   int wstatus;
   ::waitpid(_childPid, &wstatus, 0);
   if (!WIFSTOPPED(wstatus))
     _running = false;
+}
+
+void Monitor::stepi() {
+  assert(_running);
+  ::ptrace(PTRACE_SINGLESTEP, _childPid, nullptr, nullptr);
+  wait();
+}
+
+void Monitor::cont() {
+  assert(_running);
+  ::ptrace(PTRACE_CONT, _childPid, nullptr, nullptr);
+  wait();
+}
+
+Breakpoint Monitor::functionBreakpoint(const std::string & /*functionName*/) {
+  // TODO
+  return {};
 }
 
 } // namespace Whiteboard
