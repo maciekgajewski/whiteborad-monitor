@@ -17,7 +17,14 @@ int main(int argc, char **argv) {
   const char *executable = argv[1];
 
   Whiteboard::Monitor::Args args = {executable, "1", "2"};
-  Whiteboard::Monitor m(executable, args);
+  Whiteboard::Monitor m = Whiteboard::Monitor::runExecutable(executable, args);
 
-  m.run();
+  int instructions = 0;
+  while (m.isRunning()) {
+    m.stepi();
+    instructions++;
+  }
+
+  fmt::print("Process {} finished, executed {} instructions\n", executable,
+             instructions);
 }

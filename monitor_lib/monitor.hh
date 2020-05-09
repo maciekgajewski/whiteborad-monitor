@@ -8,15 +8,18 @@ class Monitor {
 public:
   using Args = std::vector<std::string>;
 
-  Monitor(const std::string &executable, const Args &args);
+  Monitor(const Monitor &) = delete;
 
-  void run();
+  static Monitor runExecutable(const std::string &executable, const Args &args);
+
+  bool isRunning() const { return _running; }
+  void stepi();
 
 private:
-  void runChild();
+  Monitor(int pid);
 
-  std::string _executable;
-  Args _args;
+  int _childPid = 0;
+  bool _running = false;
 };
 
 } // namespace Whiteboard

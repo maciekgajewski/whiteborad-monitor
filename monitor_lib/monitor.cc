@@ -3,43 +3,62 @@
 #include <fmt/core.h>
 
 #include <algorithm>
-#include <cerrno>
-#include <cstring>
+#include <cassert>
+#include <cstdio>
 
 #include <sys/ptrace.h>
+#include <sys/wait.h>
 #include <unistd.h>
 
 namespace Whiteboard {
 
-Monitor::Monitor(const std::string &executable, const Args &args)
-    : _executable(executable), _args(args) {
-  fmt::print("creating monitor on {}\n", executable);
-}
+Monitor Monitor::runExecutable(const std::string &executable,
+                               const Args &args) {
 
-void Monitor::run() {
-
-  fmt::print("running\n");
+  fmt::print("running {}\n", executable);
 
   int pid = ::fork();
-  if (pid == 0)
-    runChild();
+  if (pid == 0) {
 
-  // attach to child
-  // TODO
+    if (::ptrace(PTRACE_TRACEME, 0, nullptr, nullptr)) {
+      std::perror("ptrace failed");
+      std::abort();
+    }
+
+    std::vector<const char *> argv;
+    argv.reserve(args.size() + 1);
+
+    for (auto &arg : args)
+      argv.push_back(arg.c_str());
+    argv.push_back(nullptr);
+
+    ::execv(executable.c_str(), const_cast<char **>(argv.data()));
+    std::perror("Failed ot execute target");
+    std::abort();
+  }
+
+  return Monitor(pid);
 }
 
-void Monitor::runChild() {
+Monitor::Monitor(int pid) {
 
-  std::vector<char *> argv;
-  argv.reserve(_args.size() + 1);
+  _childPid = pid;
 
-  for (auto &arg : _args)
-    argv.push_back(arg.data());
-  argv.push_back(nullptr);
+  int wstatus;
+  ::waitpid(_childPid, &wstatus, 0);
+  if (WIFSTOPPED(wstatus))
+    _running = true;
+}
 
-  ::execv(_executable.c_str(), argv.data());
-  throw std::runtime_error(
-      fmt::format("Failed to execute target: {}", std::strerror(errno)));
+void Monitor::stepi() {
+  assert(_running);
+
+  ::ptrace(PTRACE_SINGLESTEP, _childPid, nullptr, nullptr);
+
+  int wstatus;
+  ::waitpid(_childPid, &wstatus, 0);
+  if (!WIFSTOPPED(wstatus))
+    _running = false;
 }
 
 } // namespace Whiteboard
