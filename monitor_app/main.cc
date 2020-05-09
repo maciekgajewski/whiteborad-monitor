@@ -21,6 +21,11 @@ int main(int argc, char **argv) {
 
   auto breakpoint = m.functionBreakpoint("main");
   m.cont();
+  while (m.isRunning()) {
+    fmt::print("process stopped\n");
+    std::this_thread::sleep_for(2s);
+    m.cont();
+  }
 
   fmt::print("Process {} finished\n", executable);
 }
