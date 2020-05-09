@@ -11,6 +11,8 @@ public:
   void run();
 
 private:
+  void runChild();
+
   std::string _executable;
 };
 
