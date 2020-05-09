@@ -16,6 +16,8 @@ int main(int argc, char **argv) {
 
   const char *executable = argv[1];
 
-  Whiteboard::Monitor m(executable);
+  Whiteboard::Monitor::Args args = {executable, "1", "2"};
+  Whiteboard::Monitor m(executable, args);
+
   m.run();
 }

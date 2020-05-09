@@ -2,6 +2,7 @@
 
 #include <fmt/core.h>
 
+#include <algorithm>
 #include <cerrno>
 #include <cstring>
 
@@ -10,7 +11,8 @@
 
 namespace Whiteboard {
 
-Monitor::Monitor(const std::string &executable) : _executable(executable) {
+Monitor::Monitor(const std::string &executable, const Args &args)
+    : _executable(executable), _args(args) {
   fmt::print("creating monitor on {}\n", executable);
 }
 
@@ -28,7 +30,14 @@ void Monitor::run() {
 
 void Monitor::runChild() {
 
-  ::execl(_executable.c_str(), _executable.c_str(), nullptr);
+  std::vector<char *> argv;
+  argv.reserve(_args.size() + 1);
+
+  for (auto &arg : _args)
+    argv.push_back(arg.data());
+  argv.push_back(nullptr);
+
+  ::execv(_executable.c_str(), argv.data());
   throw std::runtime_error(
       fmt::format("Failed to execute target: {}", std::strerror(errno)));
 }
