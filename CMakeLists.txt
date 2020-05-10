@@ -1,6 +1,8 @@
 project(whiteboard-monitor)
 cmake_minimum_required(VERSION 3.1.0)
 
+find_package(Boost REQUIRED COMPONENTS filesystem)
+
 add_subdirectory(external)
 
 add_compile_options(-Wall)
