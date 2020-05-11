@@ -16,6 +16,14 @@
 
 namespace Whiteboard {
 
+namespace {
+Registers convert(const ::user_regs_struct &regs) {
+  Registers out;
+  out.rip = regs.rip;
+  return out;
+}
+} // namespace
+
 Monitor Monitor::runExecutable(const std::string &executable,
                                const Args &args) {
 
@@ -69,9 +77,12 @@ Monitor::StopState Monitor::wait() {
     _running = false;
     state.reason = StopReason::Finished;
   } else {
-    struct user_regs_struct regs;
+
+    // read registers
+    ::user_regs_struct regs;
     ::ptrace(PTRACE_GETREGS, _childPid, 0, &regs);
     fmt::print("stopped, RIP={:x}\n", regs.rip);
+
     auto it =
         std::find_if(_breakpoints.begin(), _breakpoints.end(),
                      [&](auto &bptr) { return bptr.addr == regs.rip - 1; });
@@ -87,6 +98,15 @@ Monitor::StopState Monitor::wait() {
     } else {
       state.reason = StopReason::Other;
     }
+
+    // store registers
+    _recentState.registers = convert(regs);
+
+    // peek into the text
+    _recentState.nextText.words[0].w =
+        ::ptrace(PTRACE_PEEKTEXT, _childPid, (void *)regs.rip, nullptr);
+    _recentState.nextText.words[1].w =
+        ::ptrace(PTRACE_PEEKTEXT, _childPid, (void *)(regs.rip + 8), nullptr);
   }
   return state;
 }

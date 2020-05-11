@@ -13,8 +13,18 @@ union Word {
   std::uint8_t b[8];
 };
 
+union Dword {
+  Word words[2];
+  std::uint8_t b[16];
+};
+
 using addr_t = std::uint64_t;
 using breakpoint_id = std::uint64_t;
+
+struct Registers {
+  addr_t rip; // instruction pointer
+  // TODO add others as needed
+};
 
 class Monitor {
 public:
@@ -61,6 +71,11 @@ private:
 
   std::vector<Breakpoint> _breakpoints;
   ProcessDebugInfo _debugInfo;
+
+  struct {
+    Registers registers;
+    Dword nextText;
+  } _recentState;
 };
 
 } // namespace Whiteboard
