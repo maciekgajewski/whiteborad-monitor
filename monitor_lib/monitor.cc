@@ -48,12 +48,11 @@ Monitor::Monitor(int pid, const std::string &executable)
     : _executable(
           boost::filesystem::canonical(boost::filesystem::path(executable))
               .native()),
-      _executableDebugInfo(_executable) {
+      _debugInfo(pid, _executable) {
 
   _childPid = pid;
   _running = true;
   wait();
-  _maps.load(_childPid);
 }
 
 Monitor::~Monitor() = default;
@@ -104,17 +103,9 @@ Monitor::StopState Monitor::cont() {
   return wait();
 }
 
-void Monitor::breakAtFunction(const std::string &functionName,
-                              breakpoint_id bid) {
-
-  // use dwarf to find function name
-  auto offset = _executableDebugInfo.findFunction(functionName);
-  if (offset) {
-    std::uint64_t addr = _maps.findAddressByOffset(_executable, offset);
-    addBreakpoint(addr, bid);
-  } else
-    throw std::runtime_error(
-        fmt::format("Unable to find function: {}", functionName));
+void Monitor::breakAtFunction(const std::string &fname, breakpoint_id bid) {
+  addr_t addr = _debugInfo.findFunction(fname);
+  addBreakpoint(addr, bid);
 }
 
 void Monitor::addBreakpoint(addr_t addr, breakpoint_id bid) {

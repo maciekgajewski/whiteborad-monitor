@@ -8,7 +8,6 @@
 namespace Whiteboard {
 
 MemMaps::Mapping MemMaps::parseLine(const std::string &line) {
-
   static const std::regex RX(
       "^([0-9a-f]+)-([0-9a-f]+) .{4} ([0-9a-f]+) [0-9:]{5} [0-9]+\\s*(.*)$");
 

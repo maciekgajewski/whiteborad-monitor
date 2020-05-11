@@ -1,7 +1,6 @@
 #pragma once
 
-#include "file_debug_info.hh"
-#include "mem_maps.hh"
+#include "process_debug_info.hh"
 
 #include <memory>
 #include <string>
@@ -61,9 +60,7 @@ private:
   bool _running = false;
 
   std::vector<Breakpoint> _breakpoints;
-
-  FileDebugInfo _executableDebugInfo;
-  MemMaps _maps;
+  ProcessDebugInfo _debugInfo;
 };
 
 } // namespace Whiteboard
