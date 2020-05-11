@@ -1,4 +1,3 @@
-
 add_library(monitor_lib
 
     monitor.cc monitor.hh

@@ -19,25 +19,6 @@
 
 namespace Whiteboard {
 
-namespace Detail {
-struct BreakpointImpl {
-  BreakpointImpl(std::uint64_t a, Monitor *m) : _addr(a), _monitor(m) {}
-  ~BreakpointImpl() {
-    if (_monitor)
-      _monitor->breakpointRemoved(*this);
-  }
-  BreakpointImpl(BreakpointImpl &&) = delete;
-  BreakpointImpl(const BreakpointImpl &) = delete;
-
-  std::uint64_t _addr;
-  std::uint64_t _originalData;
-  Monitor *_monitor;
-  bool _armed = false;
-};
-} // namespace Detail
-
-Breakpoint::~Breakpoint() = default;
-
 Monitor Monitor::runExecutable(const std::string &executable,
                                const Args &args) {
 
@@ -87,46 +68,52 @@ Monitor::Monitor(int pid, const std::string &executable) {
   _maps.load(_childPid);
 }
 
-Monitor::~Monitor() {
-  for (Detail::BreakpointImpl *bp : _breakpoints)
-    bp->_monitor = nullptr;
-}
+Monitor::~Monitor() = default;
 
-void Monitor::wait() {
+Monitor::StopState Monitor::wait() {
   assert(_running);
+
+  StopState state;
 
   int wstatus;
   ::waitpid(_childPid, &wstatus, 0);
   if (!WIFSTOPPED(wstatus)) {
     fmt::print("child finished\n", wstatus);
     _running = false;
+    state.reason = StopReason::Finished;
   } else {
     struct user_regs_struct regs;
     ::ptrace(PTRACE_GETREGS, _childPid, 0, &regs);
     fmt::print("stopped, RIP={:x}\n", regs.rip);
     auto it =
         std::find_if(_breakpoints.begin(), _breakpoints.end(),
-                     [&](auto &bptr) { return bptr->_addr == regs.rip - 1; });
+                     [&](auto &bptr) { return bptr.addr == regs.rip - 1; });
     if (it != _breakpoints.end()) {
-      fmt::print("breakpoint hit\n");
-      disarmBreakpoint(**it);
-      // move back and execute the instrumention at breakpoint again
+      fmt::print("breakpoint hit, oid={}\n", it->id);
+      state.reason = StopReason::Breakpoint;
+      state.breakpoint = it->id;
+
+      disarmBreakpoint(*it);
+      _breakpoints.erase(it);
       regs.rip -= 1;
       ::ptrace(PTRACE_SETREGS, _childPid, 0, &regs);
+    } else {
+      state.reason = StopReason::Other;
     }
   }
+  return state;
 }
 
-void Monitor::stepi() {
+Monitor::StopState Monitor::stepi() {
   assert(_running);
   ::ptrace(PTRACE_SINGLESTEP, _childPid, nullptr, nullptr);
-  wait();
+  return wait();
 }
 
-void Monitor::cont() {
+Monitor::StopState Monitor::cont() {
   assert(_running);
   ::ptrace(PTRACE_CONT, _childPid, nullptr, nullptr);
-  wait();
+  return wait();
 }
 
 /*
@@ -161,58 +148,49 @@ static std::uint64_t findFunctionByName(const dwarf::dwarf &dwarf,
   return 0;
 }
 
-void Monitor::breakpointRemoved(Detail::BreakpointImpl &bp) {
-
-  auto it = std::find(_breakpoints.begin(), _breakpoints.end(), &bp);
-  assert(it != _breakpoints.end());
-  _breakpoints.erase(it);
-  if (bp._armed && _running)
-    disarmBreakpoint(bp);
-}
-
-Breakpoint Monitor::functionBreakpoint(const std::string &functionName) {
+void Monitor::breakAtFunction(const std::string &functionName,
+                              breakpoint_id bid) {
 
   // use dwarf to find function name
   auto offset = findFunctionByName(*_dwarf, functionName);
   if (offset) {
     std::uint64_t addr = _maps.findAddressByOffset(_executable, offset);
-    auto bi = new Detail::BreakpointImpl{addr, this};
-    armBreakpoint(*bi);
-    _breakpoints.push_back(bi);
-    return Breakpoint{std::unique_ptr<Detail::BreakpointImpl>(bi)};
+    addBreakpoint(addr, bid);
   } else
     throw std::runtime_error(
         fmt::format("Unable to find function: {}", functionName));
 }
 
-void Monitor::armBreakpoint(Detail::BreakpointImpl &bp) {
-  if (bp._armed)
-    return;
-
-  long data = ::ptrace(PTRACE_PEEKTEXT, _childPid, (void *)bp._addr, nullptr);
+void Monitor::addBreakpoint(addr_t addr, breakpoint_id bid) {
+  long data = ::ptrace(PTRACE_PEEKTEXT, _childPid, (void *)addr, nullptr);
   if (data == -1) {
     throw std::runtime_error(fmt::format(
         "Unable to arm a breakpoint (PEEKTEXT): {}", std::strerror(errno)));
   }
-  bp._originalData = data;
+
+  Breakpoint bp;
+  bp.addr = addr;
+  bp.id = bid;
+  bp.originalData = data;
 
   Word w;
   w.w = data;
   w.b[0] = 0xcc;
 
-  if (::ptrace(PTRACE_POKETEXT, _childPid, (void *)bp._addr, (void *)(w.w))) {
+  if (::ptrace(PTRACE_POKETEXT, _childPid, (void *)bp.addr, (void *)(w.w))) {
     throw std::runtime_error(fmt::format(
         "Unable to arm a breakpoint (POKETEXT): {}", std::strerror(errno)));
   }
+
+  _breakpoints.push_back(bp);
 }
 
-void Monitor::disarmBreakpoint(Detail::BreakpointImpl &bp) {
-  if (::ptrace(PTRACE_POKETEXT, _childPid, (void *)bp._addr,
-               (void *)(bp._originalData))) {
+void Monitor::disarmBreakpoint(const Breakpoint &bp) {
+  if (::ptrace(PTRACE_POKETEXT, _childPid, (void *)bp.addr,
+               (void *)(bp.originalData))) {
     throw std::runtime_error(fmt::format(
         "Unable to disarm a breakpoint (POKETEXT): {}", std::strerror(errno)));
   }
-  bp._armed = false;
 }
 
 } // namespace Whiteboard

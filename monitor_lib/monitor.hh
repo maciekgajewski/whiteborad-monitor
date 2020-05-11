@@ -12,26 +12,24 @@ class dwarf;
 
 namespace Whiteboard {
 
-namespace Detail {
-class BreakpointImpl;
-}
-
 union Word {
   std::uint64_t w;
   std::uint8_t b[8];
 };
 
 using addr_t = std::uint64_t;
-
-class Breakpoint {
-public:
-  ~Breakpoint();
-  std::unique_ptr<Detail::BreakpointImpl> _impl;
-};
+using breakpoint_id = std::uint64_t;
 
 class Monitor {
 public:
   using Args = std::vector<std::string>;
+
+  enum class StopReason { Breakpoint, Finished, Other };
+
+  struct StopState {
+    StopReason reason;
+    breakpoint_id breakpoint;
+  };
 
   Monitor(const Monitor &) = delete;
   Monitor(Monitor &&) = delete;
@@ -42,28 +40,31 @@ public:
   bool isRunning() const { return _running; }
 
   // breakpoints
-  Breakpoint functionBreakpoint(const std::string &functionName);
+  void breakAtFunction(const std::string &functionName, breakpoint_id bid);
 
   // execution control
-  void stepi();
-  void cont();
+  StopState stepi();
+  StopState cont();
 
 private:
-  friend class Detail::BreakpointImpl;
+  struct Breakpoint {
+    addr_t addr;
+    std::uint64_t originalData;
+    breakpoint_id id;
+  };
 
   Monitor(int pid, const std::string &executable);
 
-  void wait();
-  void breakpointRemoved(Detail::BreakpointImpl &bp);
-  void armBreakpoint(Detail::BreakpointImpl &bp);
-  void disarmBreakpoint(Detail::BreakpointImpl &bp);
+  StopState wait();
+  void addBreakpoint(addr_t addr, breakpoint_id bid);
+  void disarmBreakpoint(const Breakpoint &bp);
 
   int _childPid = 0;
   std::string _executable;
   bool _running = false;
 
   std::unique_ptr<dwarf::dwarf> _dwarf;
-  std::vector<Detail::BreakpointImpl *> _breakpoints;
+  std::vector<Breakpoint> _breakpoints;
 
   MemMaps _maps;
 };
