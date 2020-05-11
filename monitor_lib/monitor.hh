@@ -1,14 +1,11 @@
 #pragma once
 
+#include "file_debug_info.hh"
 #include "mem_maps.hh"
 
 #include <memory>
 #include <string>
 #include <vector>
-
-namespace dwarf {
-class dwarf;
-}
 
 namespace Whiteboard {
 
@@ -63,9 +60,9 @@ private:
   std::string _executable;
   bool _running = false;
 
-  std::unique_ptr<dwarf::dwarf> _dwarf;
   std::vector<Breakpoint> _breakpoints;
 
+  FileDebugInfo _executableDebugInfo;
   MemMaps _maps;
 };
 
