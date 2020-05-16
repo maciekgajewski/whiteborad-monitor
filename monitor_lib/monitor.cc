@@ -16,14 +16,6 @@
 
 namespace Whiteboard {
 
-namespace {
-Registers convert(const ::user_regs_struct &regs) {
-  Registers out;
-  out.rip = regs.rip;
-  return out;
-}
-} // namespace
-
 Monitor Monitor::runExecutable(const std::string &executable,
                                const Args &args) {
 
@@ -100,13 +92,15 @@ Monitor::StopState Monitor::wait() {
     }
 
     // store registers
-    _recentState.registers = convert(regs);
+    _recentState.registers = Registers::fromLinux(regs);
 
     // peek into the text
-    _recentState.nextText.words[0].w =
+    std::int64_t textLow =
         ::ptrace(PTRACE_PEEKTEXT, _childPid, (void *)regs.rip, nullptr);
-    _recentState.nextText.words[1].w =
+    std::int64_t textHigh =
         ::ptrace(PTRACE_PEEKTEXT, _childPid, (void *)(regs.rip + 8), nullptr);
+    std::memcpy(_recentState.nextText.data(), &textLow, 8);
+    std::memcpy(_recentState.nextText.data() + 8, &textHigh, 8);
   }
   return state;
 }
@@ -140,11 +134,12 @@ void Monitor::addBreakpoint(addr_t addr, breakpoint_id bid) {
   bp.id = bid;
   bp.originalData = data;
 
-  Word w;
-  w.w = data;
-  w.b[0] = 0xcc;
+  Word64 w(data);
+  w.set8(0, 0xcc);
+  fmt::print("setting bp at addr={:x}, original data={:x}, modified={:x}\n",
+             bp.addr, bp.originalData, w.get64());
 
-  if (::ptrace(PTRACE_POKETEXT, _childPid, (void *)bp.addr, (void *)(w.w))) {
+  if (::ptrace(PTRACE_POKETEXT, _childPid, (void *)bp.addr, w.bytes())) {
     throw std::runtime_error(fmt::format(
         "Unable to arm a breakpoint (POKETEXT): {}", std::strerror(errno)));
   }

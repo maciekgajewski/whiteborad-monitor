@@ -1,6 +1,8 @@
 #pragma once
 
 #include "process_debug_info.hh"
+#include "registers.hh"
+#include "word.hh"
 
 #include <memory>
 #include <string>
@@ -8,23 +10,8 @@
 
 namespace Whiteboard {
 
-union Word {
-  std::uint64_t w;
-  std::uint8_t b[8];
-};
-
-union Dword {
-  Word words[2];
-  std::uint8_t b[16];
-};
-
 using addr_t = std::uint64_t;
 using breakpoint_id = std::uint64_t;
-
-struct Registers {
-  addr_t rip; // instruction pointer
-  // TODO add others as needed
-};
 
 class Monitor {
 public:
@@ -52,6 +39,8 @@ public:
   StopState stepi();
   StopState cont();
 
+  const Registers &registers() const { return _recentState.registers; }
+
 private:
   struct Breakpoint {
     addr_t addr;
@@ -74,7 +63,7 @@ private:
 
   struct {
     Registers registers;
-    Dword nextText;
+    std::array<std::uint8_t, 16> nextText;
   } _recentState;
 };
 

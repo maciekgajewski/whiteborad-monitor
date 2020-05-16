@@ -4,6 +4,8 @@ add_library(monitor_lib
     mem_maps.cc mem_maps.hh
     process_debug_info.cc process_debug_info.hh
     file_debug_info.cc file_debug_info.hh
+    word.hh
+    registers.cc registers.hh
 )
 
 target_include_directories(monitor_lib INTERFACE ..)
