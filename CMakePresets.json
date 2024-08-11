@@ -1,0 +1,28 @@
+{
+    "version": 6,
+    "configurePresets": [
+        {
+            "name": "base",
+            "hidden": true,
+            "generator": "Ninja"
+        },
+        {
+            "name": "debug",
+            "displayName": "Whiteboard Debug",
+            "inherits": "base",
+            "binaryDir": "${sourceParentDir}/build-Debug",
+            "cacheVariables": {
+                "CMAKE_BUILD_TYPE": "Debug"
+            }
+        },
+        {
+            "name": "release",
+            "displayName": "Whiteboard Release",
+            "inherits": "base",
+            "binaryDir": "${sourceParentDir}/build-RelWithDebInfo",
+            "cacheVariables": {
+                "CMAKE_BUILD_TYPE": "RelWithDebInfo"
+            }
+        }
+    ]
+}

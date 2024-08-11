@@ -1,5 +1,5 @@
 project(whiteboard-monitor)
-cmake_minimum_required(VERSION 3.1.0)
+cmake_minimum_required(VERSION 3.23)
 
 find_package(Boost REQUIRED COMPONENTS filesystem)
 
