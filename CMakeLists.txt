@@ -9,3 +9,4 @@ set(CMAKE_CXX_STANDARD 20)
 
 add_subdirectory(monitor_lib)
 add_subdirectory(monitor_app)
+add_subdirectory(test_programs)
