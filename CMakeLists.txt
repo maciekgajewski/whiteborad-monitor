@@ -3,6 +3,7 @@ project(whiteboard-monitor)
 
 find_package(Boost CONFIG REQUIRED COMPONENTS filesystem)
 find_package(fmt CONFIG REQUIRED)
+find_package(libdwarf CONFIG REQUIRED)
 
 add_compile_options(-Wall)
 set(CMAKE_CXX_STANDARD 20)
