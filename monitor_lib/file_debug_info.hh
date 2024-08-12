@@ -3,10 +3,7 @@
 #include <cstdint>
 #include <memory>
 #include <string>
-
-namespace dwarf {
-class dwarf;
-}
+#include <unordered_map>
 
 namespace Whiteboard {
 
@@ -21,7 +18,7 @@ public:
   offset_t findFunction(const std::string &fname) const;
 
 private:
-  std::unique_ptr<dwarf::dwarf> _dwarf;
+  std::unordered_map<std::string, offset_t> _functions;
 };
 
 } // namespace Whiteboard
