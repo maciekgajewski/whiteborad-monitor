@@ -20,6 +20,7 @@ MemMaps::Mapping MemMaps::parseLine(const std::string &line) {
   out.high = std::stoull(match[2], nullptr, 16);
   out.offset = std::stoull(match[3], nullptr, 16);
   out.path = match[4];
+
   return out;
 }
 
@@ -42,13 +43,15 @@ std::uint64_t MemMaps::findAddressByOffset(const std::string &path,
     if (mapping.path == path) {
       auto lower = mapping.offset;
       auto upper = mapping.offset + (mapping.high - mapping.low);
-      if (offset >= lower && offset < upper)
-        return mapping.low + offset;
+      if (offset >= lower && offset < upper) {
+        auto mapped_addr = mapping.low + offset - mapping.offset;
+        return mapped_addr;
+      }
     }
   }
 
   throw std::runtime_error(
-      fmt::format("Addres mapping of {}@{:x} not found", path, offset));
+      fmt::format("Address mapping of {}@{:x} not found", path, offset));
 }
 
 } // namespace Whiteboard

@@ -135,11 +135,10 @@ FileDebugInfo::FileDebugInfo(const std::string &path) {
 
   throw_if_error(res, error, "loading debug info from '{}'", path);
   if (res == DW_DLV_NO_ENTRY) {
-    fmt::print("FileDebugInfo: no entry\n");
     return;
   }
-  fmt::print("FileDebugInfo: The file we actually opened is {}\n",
-             true_pathbuf);
+  // fmt::print("FileDebugInfo: The file we actually opened is {}\n",
+  //            true_pathbuf);
 
   // walk the tree
   {
@@ -171,17 +170,13 @@ FileDebugInfo::FileDebugInfo(const std::string &path) {
         if (is_info == 1) {
           /*  Done with .debug_info, now check for
               .debug_types. */
-          fmt::println("done with debug_info, reading types");
           is_info = 0;
           continue;
         }
-        /*  No more CUs to read! Never found */
-        fmt::println("No more CUs to read");
         break;
       }
 
       // we have a DIE
-      fmt::println("We have a DIE!");
       walk_dwarf_die(dbg, cu_die, is_info, 0, error);
       ::dwarf_dealloc_die(cu_die);
     }

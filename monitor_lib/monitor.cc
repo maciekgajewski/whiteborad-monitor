@@ -73,7 +73,10 @@ Monitor::StopState Monitor::wait() {
     // read registers
     ::user_regs_struct regs;
     ::ptrace(PTRACE_GETREGS, _childPid, 0, &regs);
-    fmt::print("stopped, RIP={:x}\n", regs.rip);
+    fmt::print("stopped, RIP=0x{:x}\n", regs.rip);
+    // dump data after RTIP
+    fmt::println("data at RIP:");
+    dumpMem(regs.rip, 10);
 
     auto it =
         std::find_if(_breakpoints.begin(), _breakpoints.end(),
@@ -123,6 +126,13 @@ void Monitor::breakAtFunction(const std::string &fname, breakpoint_id bid) {
 }
 
 void Monitor::addBreakpoint(addr_t addr, breakpoint_id bid) {
+
+  // debug
+  fmt::println("Adding bp at address 0x{:x}", addr);
+
+  // dump the first 1o words
+  dumpMem(addr, 10);
+
   long data = ::ptrace(PTRACE_PEEKTEXT, _childPid, (void *)addr, nullptr);
   if (data == -1) {
     throw std::runtime_error(fmt::format(
@@ -136,8 +146,9 @@ void Monitor::addBreakpoint(addr_t addr, breakpoint_id bid) {
 
   Word64 w(data);
   w.set8(0, 0xcc);
-  fmt::print("setting bp at addr={:x}, original data={:x}, modified={:x}\n",
-             bp.addr, bp.originalData, w.get64());
+  fmt::print(
+      "setting bp at addr=0x{:x}, original data=0x{:x}, modified=0x{:x}\n",
+      bp.addr, bp.originalData, w.get64());
 
   if (::ptrace(PTRACE_POKETEXT, _childPid, (void *)bp.addr, w.bytes())) {
     throw std::runtime_error(fmt::format(
@@ -145,6 +156,14 @@ void Monitor::addBreakpoint(addr_t addr, breakpoint_id bid) {
   }
 
   _breakpoints.push_back(bp);
+}
+
+void Monitor::dumpMem(addr_t addr, size_t len) {
+  for (int i = 0; i < 10; ++i) {
+    auto a = addr + i;
+    uint64_t data = ::ptrace(PTRACE_PEEKTEXT, _childPid, (void *)a, nullptr);
+    fmt::println("0x{:02x} : 0x{:02x}", a, data & 0xff);
+  }
 }
 
 void Monitor::disarmBreakpoint(const Breakpoint &bp) {

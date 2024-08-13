@@ -54,6 +54,9 @@ private:
   void addBreakpoint(addr_t addr, breakpoint_id bid);
   void disarmBreakpoint(const Breakpoint &bp);
 
+  // prints memory at address
+  void dumpMem(addr_t addr, size_t len);
+
   int _childPid = 0;
   std::string _executable;
   bool _running = false;
