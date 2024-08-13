@@ -74,9 +74,6 @@ Monitor::StopState Monitor::wait() {
     ::user_regs_struct regs;
     ::ptrace(PTRACE_GETREGS, _childPid, 0, &regs);
     fmt::print("stopped, RIP=0x{:x}\n", regs.rip);
-    // dump data after RTIP
-    fmt::println("data at RIP:");
-    dumpMem(regs.rip, 10);
 
     auto it =
         std::find_if(_breakpoints.begin(), _breakpoints.end(),
@@ -130,9 +127,6 @@ void Monitor::addBreakpoint(addr_t addr, breakpoint_id bid) {
   // debug
   fmt::println("Adding bp at address 0x{:x}", addr);
 
-  // dump the first 1o words
-  dumpMem(addr, 10);
-
   long data = ::ptrace(PTRACE_PEEKTEXT, _childPid, (void *)addr, nullptr);
   if (data == -1) {
     throw std::runtime_error(fmt::format(
@@ -150,7 +144,7 @@ void Monitor::addBreakpoint(addr_t addr, breakpoint_id bid) {
       "setting bp at addr=0x{:x}, original data=0x{:x}, modified=0x{:x}\n",
       bp.addr, bp.originalData, w.get64());
 
-  if (::ptrace(PTRACE_POKETEXT, _childPid, (void *)bp.addr, w.bytes())) {
+  if (::ptrace(PTRACE_POKETEXT, _childPid, (void *)bp.addr, w.get64())) {
     throw std::runtime_error(fmt::format(
         "Unable to arm a breakpoint (POKETEXT): {}", std::strerror(errno)));
   }
