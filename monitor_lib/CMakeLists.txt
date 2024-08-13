@@ -10,6 +10,8 @@ add_library(monitor_lib
 
 target_include_directories(monitor_lib INTERFACE ..)
 
+target_link_libraries(monitor_lib PUBLIC libdwarf::dwarf)
+
 target_link_libraries(monitor_lib PRIVATE fmt::fmt)
 target_link_libraries(monitor_lib PRIVATE Boost::filesystem)
-target_link_libraries(monitor_lib PRIVATE libdwarf::dwarf)
+target_link_libraries(monitor_lib PRIVATE Boost::scope_exit)

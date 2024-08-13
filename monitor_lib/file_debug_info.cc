@@ -1,26 +1,81 @@
 #include "file_debug_info.hh"
 
-#include <fmt/core.h>
+#include <boost/scope_exit.hpp>
 
-#include <libdwarf/dwarf.h>
-#include <libdwarf/libdwarf.h>
+#include <fmt/core.h>
 
 namespace Whiteboard {
 
 namespace {
 
-void process_dwarf_die(Dwarf_Die die) {
-  //
-  fmt::println("We have a DIE");
+template <typename... Args>
+void throw_if_error(int res, Dwarf_Error &error, std::string_view action_fmt,
+                    const Args &...args) {
+  if (res == DW_DLV_ERROR) {
+    std::string action =
+        fmt::vformat(action_fmt, fmt::make_format_args(args...));
+    std::string error_msg =
+        fmt::format("DWARF error {} : {}", action, dwarf_errmsg(error));
+    throw std::runtime_error(error_msg);
+  }
 }
 
-void record_die_and_siblings_e(Dwarf_Debug dbg, Dwarf_Die in_die, int is_info,
-                               int in_level, Dwarf_Error *error) {
+} // namespace
+
+void FileDebugInfo::process_dwarf_die(Dwarf_Die &die, Dwarf_Error &error,
+                                      int in_level) {
+
+  // tag
+  Dwarf_Half tag = 0;
+  int res = ::dwarf_tag(die, &tag, &error);
+  throw_if_error(res, error, "reading tag");
+
+  // die name
+  char *die_name_ptr = nullptr;
+  res = ::dwarf_diename(die, &die_name_ptr, &error);
+  throw_if_error(res, error, "reading die name");
+  if (res == DW_DLV_NO_ENTRY)
+    return;
+
+  // addr
+  Dwarf_Addr low_pc = 0;
+  res = ::dwarf_lowpc(die, &low_pc, &error);
+  throw_if_error(res, error, "reading die low_pc");
+  if (res == DW_DLV_NO_ENTRY)
+    return;
+
+  // record function
+  // TODO only top level. A proper walker is needed, that builds a name
+  // recursively
+  if (tag == DW_TAG_subprogram && die_name_ptr && in_level == 1 && low_pc) {
+    auto [_, success] = _functions.try_emplace(die_name_ptr, low_pc);
+    if (!success) {
+      throw std::runtime_error(
+          fmt::format("Duplicate function name: {}", die_name_ptr));
+    }
+  }
+
+  // debug dump
+
+  // tag name
+  // const char *die_name = die_name_ptr ? die_name_ptr : "(unnamed)";
+  // const char *tag_name = nullptr;
+  // res = ::dwarf_get_TAG_name(tag, &tag_name);
+  // throw_if_error(res, error, "reading tag name");
+
+  // fmt::print("{:>{}}", "", in_level);
+  // fmt::println("tag={}, name={}, addr={}, level={}", tag_name, die_name,
+  //              (void *)(low_pc), in_level);
+}
+
+void FileDebugInfo::walk_dwarf_die(Dwarf_Debug dbg, Dwarf_Die in_die,
+                                   int is_info, int in_level,
+                                   Dwarf_Error &error) {
   int res = DW_DLV_OK;
   Dwarf_Die cur_die = in_die;
   Dwarf_Die child = 0;
 
-  process_dwarf_die(in_die);
+  process_dwarf_die(in_die, error, in_level);
 
   /*   Loop on a list of siblings */
   for (;;) {
@@ -30,37 +85,32 @@ void record_die_and_siblings_e(Dwarf_Debug dbg, Dwarf_Die in_die, int is_info,
         and the DW_TAG of cur_die, you may want
         to skip the dwarf_child call. We descend
         the DWARF-standard way of depth-first. */
-    res = dwarf_child(cur_die, &child, error);
-    if (res == DW_DLV_ERROR) {
-      printf("Error in dwarf_child , level %d \n", in_level);
-      exit(EXIT_FAILURE);
-    }
+    res = ::dwarf_child(cur_die, &child, &error);
+    throw_if_error(res, error, "dwarf_child");
+
     if (res == DW_DLV_OK) {
-      record_die_and_siblings_e(dbg, child, is_info, in_level + 1, error);
+      walk_dwarf_die(dbg, child, is_info, in_level + 1, error);
       /* No longer need 'child' die. */
-      dwarf_dealloc(dbg, child, DW_DLA_DIE);
+      ::dwarf_dealloc(dbg, child, DW_DLA_DIE);
       child = 0;
     }
     /* res == DW_DLV_NO_ENTRY or DW_DLV_OK */
-    res = dwarf_siblingof_c(cur_die, &sib_die, error);
-    if (res == DW_DLV_ERROR) {
-      exit(EXIT_FAILURE);
-    }
+    res = dwarf_siblingof_c(cur_die, &sib_die, &error);
+    throw_if_error(res, error, "dwarf_siblingof_c");
+
     if (res == DW_DLV_NO_ENTRY) {
       /* Done at this level. */
       break;
     }
     /* res == DW_DLV_OK */
     if (cur_die != in_die) {
-      dwarf_dealloc(dbg, cur_die, DW_DLA_DIE);
+      ::dwarf_dealloc(dbg, cur_die, DW_DLA_DIE);
       cur_die = 0;
     }
     cur_die = sib_die;
-    process_dwarf_die(sib_die);
+    process_dwarf_die(sib_die, error, in_level);
   }
 }
-
-} // namespace
 
 FileDebugInfo::FileDebugInfo(const std::string &path) {
 
@@ -76,15 +126,14 @@ FileDebugInfo::FileDebugInfo(const std::string &path) {
 
   res = dwarf_init_path(path.c_str(), true_pathbuf, tpathlen,
                         DW_GROUPNUMBER_ANY, errhand, errarg, &dbg, &error);
-  if (res == DW_DLV_ERROR) {
-    std::string error_msg =
-        fmt::format("FileDebugInfo: error loading debug info from '{}' : {}",
-                    path, dwarf_errmsg(error));
-    /*  Necessary call even though dbg is null!
-        This avoids a memory leak.  */
-    dwarf_dealloc_error(dbg, error);
-    throw std::runtime_error(error_msg);
+
+  BOOST_SCOPE_EXIT(dbg, error) {
+    ::dwarf_dealloc_error(dbg, error);
+    ::dwarf_finish(dbg);
   }
+  BOOST_SCOPE_EXIT_END
+
+  throw_if_error(res, error, "loading debug info from '{}'", path);
   if (res == DW_DLV_NO_ENTRY) {
     fmt::print("FileDebugInfo: no entry\n");
     return;
@@ -111,23 +160,13 @@ FileDebugInfo::FileDebugInfo(const std::string &path) {
       Dwarf_Unsigned cu_header_length = 0;
 
       memset(&signature, 0, sizeof(signature));
-      res = dwarf_next_cu_header_e(
+      res = ::dwarf_next_cu_header_e(
           dbg, is_info, &cu_die, &cu_header_length, &version_stamp,
           &abbrev_offset, &address_size, &offset_size, &extension_size,
           &signature, &typeoffset, &next_cu_header, &header_cu_type, &error);
 
-      if (res == DW_DLV_ERROR) {
-        std::string error_msg =
-            fmt::format("FileDebugInfo: error loading walking '{}' : {}", path,
-                        dwarf_errmsg(error));
-        /*  Necessary call even though dbg is null!
-            This avoids a memory leak.  */
-        dwarf_dealloc_error(dbg, error);
-        dwarf_finish(dbg);
-        throw std::runtime_error(error_msg);
-      }
+      throw_if_error(res, error, "walking '{}'", path);
 
-      //
       if (res == DW_DLV_NO_ENTRY) {
         if (is_info == 1) {
           /*  Done with .debug_info, now check for
@@ -143,12 +182,10 @@ FileDebugInfo::FileDebugInfo(const std::string &path) {
 
       // we have a DIE
       fmt::println("We have a DIE!");
-      record_die_and_siblings_e(dbg, cu_die, is_info, 0, &error);
-      dwarf_dealloc_die(cu_die);
+      walk_dwarf_die(dbg, cu_die, is_info, 0, error);
+      ::dwarf_dealloc_die(cu_die);
     }
   }
-
-  dwarf_finish(dbg);
 }
 
 FileDebugInfo::~FileDebugInfo() = default;

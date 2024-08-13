@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.23)
 project(whiteboard-monitor)
 
-find_package(Boost CONFIG REQUIRED COMPONENTS filesystem)
+find_package(Boost CONFIG REQUIRED COMPONENTS filesystem scope_exit)
 find_package(fmt CONFIG REQUIRED)
 find_package(libdwarf CONFIG REQUIRED)
 

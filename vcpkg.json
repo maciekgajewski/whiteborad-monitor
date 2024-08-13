@@ -2,6 +2,7 @@
     "dependencies": [
         "fmt",
         "boost-filesystem",
+        "boost-scope-exit",
         "libdwarf"
     ]
 }

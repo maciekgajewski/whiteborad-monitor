@@ -1,5 +1,8 @@
 #pragma once
 
+#include <libdwarf/dwarf.h>
+#include <libdwarf/libdwarf.h>
+
 #include <cstdint>
 #include <memory>
 #include <string>
@@ -18,6 +21,9 @@ public:
   offset_t findFunction(const std::string &fname) const;
 
 private:
+  void process_dwarf_die(Dwarf_Die &die, Dwarf_Error &error, int in_level);
+  void walk_dwarf_die(Dwarf_Debug dbg, Dwarf_Die in_die, int is_info,
+                      int in_level, Dwarf_Error &error);
   std::unordered_map<std::string, offset_t> _functions;
 };
 
