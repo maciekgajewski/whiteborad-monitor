@@ -93,14 +93,6 @@ Monitor::StopState Monitor::wait() {
 
     // store registers
     _recentState.registers = Registers::fromLinux(regs);
-
-    // peek into the text
-    std::int64_t textLow =
-        ::ptrace(PTRACE_PEEKTEXT, _childPid, (void *)regs.rip, nullptr);
-    std::int64_t textHigh =
-        ::ptrace(PTRACE_PEEKTEXT, _childPid, (void *)(regs.rip + 8), nullptr);
-    std::memcpy(_recentState.nextText.data(), &textLow, 8);
-    std::memcpy(_recentState.nextText.data() + 8, &textHigh, 8);
   }
   return state;
 }

@@ -21,7 +21,7 @@ public:
 
   struct StopState {
     StopReason reason;
-    breakpoint_id breakpoint;
+    breakpoint_id breakpoint = 0;
   };
 
   Monitor(const Monitor &) = delete;
@@ -66,7 +66,6 @@ private:
 
   struct {
     Registers registers;
-    std::array<std::uint8_t, 16> nextText;
   } _recentState;
 };
 
