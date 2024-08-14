@@ -20,7 +20,92 @@ void throw_if_error(int res, Dwarf_Error &error, std::string_view action_fmt,
   }
 }
 
+constexpr bool debug_dump = false;
+
 } // namespace
+
+void FileDebugInfo::process_dwarf_cu(Dwarf_Die &cu_die, const char *die_name,
+                                     Dwarf_Error &error) {
+  // Dwarf_Line *linebuf = 0;
+  // Dwarf_Signed linecount = 0;
+  // Dwarf_Line *linebuf_actuals = 0;
+  // Dwarf_Signed linecount_actuals = 0;
+  Dwarf_Line_Context line_context = 0;
+  Dwarf_Small table_count = 0;
+  Dwarf_Unsigned lineversion = 0;
+
+  int res = ::dwarf_srclines_b(cu_die, &lineversion, &table_count,
+                               &line_context, &error);
+  throw_if_error(res, error, "srclines");
+
+  BOOST_SCOPE_EXIT(line_context) { ::dwarf_srclines_dealloc_b(line_context); }
+  BOOST_SCOPE_EXIT_END;
+
+  fmt::println("CU {}, table_count={}", die_name, table_count);
+
+  if (table_count != 1)
+    return; // TODO action needed?
+
+  // iterate files
+  Dwarf_Signed baseindex = 0;
+  Dwarf_Signed file_count = 0;
+  Dwarf_Signed endindex = 0;
+  res = ::dwarf_srclines_files_indexes(line_context, &baseindex, &file_count,
+                                       &endindex, &error);
+  throw_if_error(res, error, "srclines_files_indexes");
+
+  for (int i = baseindex; i < endindex; i++) {
+    Dwarf_Unsigned dirindex = 0;
+    Dwarf_Unsigned modtime = 0;
+    Dwarf_Unsigned flength = 0;
+    Dwarf_Form_Data16 *md5data = 0;
+    const char *name = 0;
+
+    res = ::dwarf_srclines_files_data_b(line_context, i, &name, &dirindex,
+                                        &modtime, &flength, &md5data, &error);
+    throw_if_error(res, error, "srclines_files_data_b");
+
+    fmt::println(
+        "  files data: i={}, dirindex={}, modtime={}, flength={}, name={}", i,
+        dirindex, modtime, flength, name);
+  }
+
+  // iterate dirs
+  Dwarf_Signed dw_count = 0;
+  res = ::dwarf_srclines_include_dir_count(line_context, &dw_count, &error);
+  throw_if_error(res, error, "srclines_include_dir_count");
+
+  for (int i = 0; i < dw_count; ++i) {
+    const char *dname = nullptr;
+    res = ::dwarf_srclines_include_dir_data(line_context, i, &dname, &error);
+    throw_if_error(res, error, "srclines_include_dir_data");
+
+    fmt::println(" dir i={} name={}", i, dname);
+  }
+
+  // iterate lines
+  Dwarf_Line *linebuf = 0;
+  Dwarf_Signed linecount = 0;
+  res = ::dwarf_srclines_from_linecontext(line_context, &linebuf, &linecount,
+                                          &error);
+
+  for (int i = 0; i < linecount; ++i) {
+    Dwarf_Unsigned linenum = 0;
+    res = ::dwarf_lineno(linebuf[i], &linenum, &error);
+    throw_if_error(res, error, "lineno");
+
+    Dwarf_Unsigned filenum = 0;
+    res = ::dwarf_line_srcfileno(linebuf[i], &filenum, &error);
+    throw_if_error(res, error, "line_srcfileno");
+
+    Dwarf_Addr addr = 0;
+    res = ::dwarf_lineaddr(linebuf[i], &addr, &error);
+    throw_if_error(res, error, "lineaddr");
+
+    fmt::println(" line i={}, linenum={}, filenum={}, addr=0x{:<8x}", i,
+                 linenum, filenum, addr);
+  }
+}
 
 void FileDebugInfo::process_dwarf_die(Dwarf_Die &die, Dwarf_Error &error,
                                       int in_level) {
@@ -41,31 +126,65 @@ void FileDebugInfo::process_dwarf_die(Dwarf_Die &die, Dwarf_Error &error,
   Dwarf_Addr low_pc = 0;
   res = ::dwarf_lowpc(die, &low_pc, &error);
   throw_if_error(res, error, "reading die low_pc");
-  if (res == DW_DLV_NO_ENTRY)
-    return;
 
   // record function
   // TODO only top level. A proper walker is needed, that builds a name
   // recursively
-  if (tag == DW_TAG_subprogram && die_name_ptr && in_level == 1 && low_pc) {
-    auto [_, success] = _functions.try_emplace(die_name_ptr, low_pc);
-    if (!success) {
-      throw std::runtime_error(
-          fmt::format("Duplicate function name: {}", die_name_ptr));
+  if (tag == DW_TAG_subprogram) {
+    if (die_name_ptr && in_level == 1 && low_pc) {
+      auto [_, success] = _functions.try_emplace(die_name_ptr, low_pc);
+      if (!success) {
+        throw std::runtime_error(
+            fmt::format("Duplicate function name: {}", die_name_ptr));
+      }
+    }
+  }
+
+  // record compilation unit
+  if (tag == DW_TAG_compile_unit) {
+    if (die_name_ptr) {
+      process_dwarf_cu(die, die_name_ptr, error);
     }
   }
 
   // debug dump
+  if (debug_dump) {
 
-  // tag name
-  // const char *die_name = die_name_ptr ? die_name_ptr : "(unnamed)";
-  // const char *tag_name = nullptr;
-  // res = ::dwarf_get_TAG_name(tag, &tag_name);
-  // throw_if_error(res, error, "reading tag name");
+    // tag name
+    const char *die_name = die_name_ptr ? die_name_ptr : "(unnamed)";
+    const char *tag_name = nullptr;
+    res = ::dwarf_get_TAG_name(tag, &tag_name);
+    throw_if_error(res, error, "reading tag name");
 
-  // fmt::print("{:>{}}", "", in_level);
-  // fmt::println("tag={}, name={}, addr={}, level={}", tag_name, die_name,
-  //              (void *)(low_pc), in_level);
+    fmt::println("{:>{}} tag={}, name={}, addr={}, level={}", "", in_level,
+                 tag_name, die_name, (void *)(low_pc), in_level);
+
+    // attr list
+    {
+      Dwarf_Signed atcount;
+      Dwarf_Attribute *atlist;
+      res = ::dwarf_attrlist(die, &atlist, &atcount, &error);
+      throw_if_error(res, error, "attrrlist");
+
+      for (int i = 0; i < atcount; ++i) {
+        Dwarf_Half attrnum = 0;
+        const char *attrname = 0;
+
+        /*  use atlist[i], likely calling
+            libdwarf functions and likely
+            returning DW_DLV_ERROR if
+            what you call gets DW_DLV_ERROR */
+        res = ::dwarf_whatattr(atlist[i], &attrnum, &error);
+        throw_if_error(res, error, "whatattr");
+        ::dwarf_get_AT_name(attrnum, &attrname);
+        fmt::println("{:>{}}  * #{} {} : {}", "", in_level, i, attrnum,
+                     attrname);
+        dwarf_dealloc_attribute(atlist[i]);
+        atlist[i] = 0;
+      }
+      // dwarf_dealloc(dbg, atlist, DW_DLA_LIST);
+    }
+  } // dd
 }
 
 void FileDebugInfo::walk_dwarf_die(Dwarf_Debug dbg, Dwarf_Die in_die,

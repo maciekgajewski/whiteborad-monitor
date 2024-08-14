@@ -22,6 +22,8 @@ public:
 
 private:
   void process_dwarf_die(Dwarf_Die &die, Dwarf_Error &error, int in_level);
+  void process_dwarf_cu(Dwarf_Die &cu_die, const char *die_name,
+                        Dwarf_Error &error);
   void walk_dwarf_die(Dwarf_Debug dbg, Dwarf_Die in_die, int is_info,
                       int in_level, Dwarf_Error &error);
   std::unordered_map<std::string, offset_t> _functions;
