@@ -11,9 +11,13 @@ class MemMaps {
 public:
   void load(int pid);
 
-  // returns addres, in process space, of a byte mapped from file at offset
+  // returns address, in process space, of a byte mapped from file at offset
   std::uint64_t findAddressByOffset(const std::string &path,
-                                    std::uint64_t offset);
+                                    std::uint64_t offset) const;
+
+  // returns offset and file, based on process-space address
+  std::tuple<std::string, uint64_t>
+  findFileAndOffsetByAddress(std::uint64_t addr) const;
 
 private:
   struct Mapping {

@@ -1,4 +1,5 @@
 
+#include "monitor_lib/logging.hh"
 #include "monitor_lib/monitor.hh"
 
 #include <fmt/core.h>
@@ -15,6 +16,8 @@ int main(int argc, char **argv) {
     fmt::print("Argument required\n");
     return 1;
   }
+
+  Whiteboard::Logging::setLogLevel(Whiteboard::Logging::LogLevel::Trace);
 
   const char *executable = argv[1];
 

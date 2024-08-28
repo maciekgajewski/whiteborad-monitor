@@ -1,5 +1,7 @@
 #include "monitor.hh"
 
+#include "logging.hh"
+
 #include <fmt/core.h>
 
 #include <boost/filesystem.hpp>
@@ -19,7 +21,7 @@ namespace Whiteboard {
 Monitor Monitor::runExecutable(const std::string &executable,
                                const Args &args) {
 
-  fmt::print("running {}\n", executable);
+  Logging::debug("running {}", executable);
 
   int pid = ::fork();
   if (pid == 0) {
@@ -161,8 +163,8 @@ void Monitor::disarmBreakpoint(const Breakpoint &bp) {
 }
 
 SourceLocation Monitor::currentSourceLocation() const {
-  // TODO
-  return {};
+  return _debugInfo.findSourceLocation(
+      _recentState.registers[Registers::IP].get64());
 }
 
 } // namespace Whiteboard

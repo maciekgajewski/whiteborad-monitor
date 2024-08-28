@@ -37,7 +37,7 @@ void MemMaps::load(int pid) {
 }
 
 std::uint64_t MemMaps::findAddressByOffset(const std::string &path,
-                                           std::uint64_t offset) {
+                                           std::uint64_t offset) const {
 
   for (const Mapping &mapping : _mappings) {
     if (mapping.path == path) {
@@ -52,6 +52,11 @@ std::uint64_t MemMaps::findAddressByOffset(const std::string &path,
 
   throw std::runtime_error(
       fmt::format("Address mapping of {}@{:x} not found", path, offset));
+}
+
+std::tuple<std::string, uint64_t>
+MemMaps::findFileAndOffsetByAddress(std::uint64_t addr) const {
+  // TODO
 }
 
 } // namespace Whiteboard

@@ -2,7 +2,7 @@
 
 #include "process_debug_info.hh"
 #include "registers.hh"
-#include "source_location.h"
+#include "source_location.hh"
 #include "word.hh"
 
 #include <memory>

@@ -8,12 +8,12 @@ namespace Whiteboard {
 
 class SourceLocation {
 public:
-  const std::string file() const { return file_; }
-  int line() const { return line_; }
+  const std::string file() const { return _file; }
+  int line() const { return _line; }
 
 private:
-  std::string file_;
-  int line_ = 0;
+  std::string _file;
+  int _line = 0;
 };
 
 } // namespace Whiteboard

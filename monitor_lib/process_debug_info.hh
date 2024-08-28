@@ -2,6 +2,7 @@
 
 #include "file_debug_info.hh"
 #include "mem_maps.hh"
+#include "source_location.hh"
 
 #include <string>
 
@@ -15,7 +16,8 @@ class ProcessDebugInfo {
 public:
   ProcessDebugInfo(int pid, const std::string &executablePath);
 
-  addr_t findFunction(const std::string &fname);
+  addr_t findFunction(const std::string &fname) const;
+  SourceLocation findSourceLocation(addr_t addr) const;
 
 private:
   std::string _executable;
