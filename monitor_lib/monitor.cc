@@ -160,4 +160,9 @@ void Monitor::disarmBreakpoint(const Breakpoint &bp) {
   }
 }
 
+SourceLocation Monitor::currentSourceLocation() const {
+  // TODO
+  return {};
+}
+
 } // namespace Whiteboard

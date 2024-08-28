@@ -5,6 +5,8 @@
 
 #include <thread>
 
+#include <cassert>
+
 using namespace std::literals;
 
 int main(int argc, char **argv) {
@@ -19,14 +21,25 @@ int main(int argc, char **argv) {
   Whiteboard::Monitor::Args args = {executable, "1", "2"};
   Whiteboard::Monitor m = Whiteboard::Monitor::runExecutable(executable, args);
 
-  return 0;
+  Whiteboard::breakpoint_id mainBreakpointId = 77;
+  m.breakAtFunction("main", mainBreakpointId);
+  Whiteboard::Word64 mainStackTop;
 
-  m.breakAtFunction("main", 77);
   auto state = m.cont();
   while (m.isRunning()) {
     fmt::print("process stopped\n");
-    if (state.reason == Whiteboard::Monitor::StopReason::Breakpoint)
+    if (state.reason == Whiteboard::Monitor::StopReason::Breakpoint) {
       fmt::print("...at breakpoint {}\n", state.breakpoint);
+      assert(state.breakpoint ==
+             mainBreakpointId); // I'm not expecting any other breakpoint
+
+      // read the stack pointer
+      auto registers = m.registers();
+      mainStackTop = registers[Whiteboard::Registers::Names::SP];
+
+      auto location = m.currentSourceLocation();
+      fmt::println("at loc: {}", location);
+    }
     std::this_thread::sleep_for(2s);
     state = m.cont();
   }

@@ -19,7 +19,7 @@ public:
   std::uint8_t *bytes() { return reinterpret_cast<std::uint8_t *>(&_data); }
 
 private:
-  std::uint64_t _data;
+  std::uint64_t _data = 0;
 };
 
 }; // namespace Whiteboard
