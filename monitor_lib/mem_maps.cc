@@ -1,4 +1,5 @@
 #include "mem_maps.hh"
+#include "logging.hh"
 
 #include <fmt/core.h>
 
@@ -20,6 +21,9 @@ MemMaps::Mapping MemMaps::parseLine(const std::string &line) {
   out.high = std::stoull(match[2], nullptr, 16);
   out.offset = std::stoull(match[3], nullptr, 16);
   out.path = match[4];
+
+  Logging::trace("MemMaps: parsed mapping: {}-{} {} {}", out.low, out.high,
+                 out.offset, out.path);
 
   return out;
 }
@@ -56,7 +60,15 @@ std::uint64_t MemMaps::findAddressByOffset(const std::string &path,
 
 std::tuple<std::string, uint64_t>
 MemMaps::findFileAndOffsetByAddress(std::uint64_t addr) const {
-  // TODO
+  for (const Mapping &mapping : _mappings) {
+    if (addr >= mapping.low && addr < mapping.high) {
+      auto offset = mapping.offset + (addr - mapping.low);
+      return std::make_tuple(mapping.path, offset);
+    }
+  }
+
+  throw std::runtime_error(
+      fmt::format("Address {:x} not found in any mapping", addr));
 }
 
 } // namespace Whiteboard

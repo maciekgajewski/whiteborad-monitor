@@ -1,5 +1,7 @@
 #include "process_debug_info.hh"
 
+#include "logging.hh"
+
 namespace Whiteboard {
 ProcessDebugInfo::ProcessDebugInfo(int pid, const std::string &executablePath)
     : _executable(executablePath), _executableDebugInfo(executablePath) {
@@ -11,9 +13,17 @@ addr_t ProcessDebugInfo::findFunction(const std::string &fname) const {
   return _maps.findAddressByOffset(_executable, offset);
 }
 
-SourceLocation ProcessDebugInfo::findSourceLocation(addr_t addr) const {
+std::optional<SourceLocation>
+ProcessDebugInfo::findSourceLocation(addr_t addr) const {
 
-  // TODO
+  auto [path, offset] = _maps.findFileAndOffsetByAddress(addr);
+  if (path != _executable)
+    return std::nullopt;
+
+  Logging::trace(
+      "ProcessDebugInfo: found source location for addr 0x{:x} in {}@{:x}",
+      addr, path, offset);
+
   return {};
 }
 

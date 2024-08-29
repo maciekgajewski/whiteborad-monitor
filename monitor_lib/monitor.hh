@@ -42,7 +42,7 @@ public:
 
   // process state
   const Registers &registers() const { return _recentState.registers; }
-  SourceLocation currentSourceLocation() const;
+  std::optional<SourceLocation> currentSourceLocation() const;
 
 private:
   struct Breakpoint {

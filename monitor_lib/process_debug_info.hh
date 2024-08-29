@@ -4,6 +4,7 @@
 #include "mem_maps.hh"
 #include "source_location.hh"
 
+#include <optional>
 #include <string>
 
 namespace Whiteboard {
@@ -17,7 +18,7 @@ public:
   ProcessDebugInfo(int pid, const std::string &executablePath);
 
   addr_t findFunction(const std::string &fname) const;
-  SourceLocation findSourceLocation(addr_t addr) const;
+  std::optional<SourceLocation> findSourceLocation(addr_t addr) const;
 
 private:
   std::string _executable;

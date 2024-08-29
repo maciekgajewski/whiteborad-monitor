@@ -162,7 +162,7 @@ void Monitor::disarmBreakpoint(const Breakpoint &bp) {
   }
 }
 
-SourceLocation Monitor::currentSourceLocation() const {
+std::optional<SourceLocation> Monitor::currentSourceLocation() const {
   return _debugInfo.findSourceLocation(
       _recentState.registers[Registers::IP].get64());
 }

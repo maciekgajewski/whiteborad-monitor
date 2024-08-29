@@ -40,8 +40,10 @@ int main(int argc, char **argv) {
       auto registers = m.registers();
       mainStackTop = registers[Whiteboard::Registers::Names::SP];
 
-      auto location = m.currentSourceLocation();
-      fmt::println("at loc: {}", location);
+      auto maybeLocation = m.currentSourceLocation();
+      if (maybeLocation) {
+        fmt::println("at loc: {}", *maybeLocation);
+      }
     }
     std::this_thread::sleep_for(2s);
     state = m.cont();
