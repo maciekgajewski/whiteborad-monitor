@@ -1,5 +1,7 @@
 #include "file_debug_info.hh"
 
+#include "logging.hh"
+
 #include <boost/scope_exit.hpp>
 
 #include <fmt/core.h>
@@ -41,7 +43,8 @@ void FileDebugInfo::process_dwarf_cu(Dwarf_Die &cu_die, const char *die_name,
   BOOST_SCOPE_EXIT(line_context) { ::dwarf_srclines_dealloc_b(line_context); }
   BOOST_SCOPE_EXIT_END;
 
-  fmt::println("CU {}, table_count={}", die_name, table_count);
+  Logging::trace("FileDebugInfo: Dwarf CU {}, table_count={}", die_name,
+                 table_count);
 
   if (table_count != 1)
     return; // TODO action needed?
@@ -65,9 +68,9 @@ void FileDebugInfo::process_dwarf_cu(Dwarf_Die &cu_die, const char *die_name,
                                         &modtime, &flength, &md5data, &error);
     throw_if_error(res, error, "srclines_files_data_b");
 
-    fmt::println(
-        "  files data: i={}, dirindex={}, modtime={}, flength={}, name={}", i,
-        dirindex, modtime, flength, name);
+    Logging::trace("FileDebugInfo: Dwarf files data: i={}, dirindex={}, "
+                   "modtime={}, flength={}, name={}",
+                   i, dirindex, modtime, flength, name);
   }
 
   // iterate dirs
@@ -80,7 +83,7 @@ void FileDebugInfo::process_dwarf_cu(Dwarf_Die &cu_die, const char *die_name,
     res = ::dwarf_srclines_include_dir_data(line_context, i, &dname, &error);
     throw_if_error(res, error, "srclines_include_dir_data");
 
-    fmt::println(" dir i={} name={}", i, dname);
+    Logging::trace("FileDebugInfo: Dwarf dir i={} name={}", i, dname);
   }
 
   // iterate lines
@@ -102,8 +105,29 @@ void FileDebugInfo::process_dwarf_cu(Dwarf_Die &cu_die, const char *die_name,
     res = ::dwarf_lineaddr(linebuf[i], &addr, &error);
     throw_if_error(res, error, "lineaddr");
 
-    fmt::println(" line i={}, linenum={}, filenum={}, addr=0x{:<8x}", i,
-                 linenum, filenum, addr);
+    Dwarf_Bool prologue_end = 0;
+    Dwarf_Bool epilogue_end = 0;
+    Dwarf_Unsigned isa = 0;
+    Dwarf_Unsigned discriminator = 0;
+
+    res = ::dwarf_prologue_end_etc(linebuf[i], &prologue_end, &epilogue_end,
+                                   &isa, &discriminator, &error);
+    throw_if_error(res, error, "prologue_end_etc");
+
+    Dwarf_Bool end_sequence = 0;
+    res = ::dwarf_lineendsequence(linebuf[i], &end_sequence, &error);
+    throw_if_error(res, error, "lineendsequence");
+
+    Dwarf_Bool begin_statement = 0;
+    res = ::dwarf_linebeginstatement(linebuf[i], &begin_statement, &error);
+    throw_if_error(res, error, "linebeginstatement");
+
+    Logging::trace(
+        "FileDebugInfo: Dwarf line i={}, prologue_end={}, "
+        "epilogue_end={}, isa={}, discriminator={}, end_sequence={}, "
+        "linenum={}, filenum={}, addr=0x{:<8x}",
+        i, prologue_end, epilogue_end, isa, discriminator, end_sequence,
+        linenum, filenum, addr);
   }
 }
 
@@ -156,8 +180,9 @@ void FileDebugInfo::process_dwarf_die(Dwarf_Die &die, Dwarf_Error &error,
     res = ::dwarf_get_TAG_name(tag, &tag_name);
     throw_if_error(res, error, "reading tag name");
 
-    fmt::println("{:>{}} tag={}, name={}, addr={}, level={}", "", in_level,
-                 tag_name, die_name, (void *)(low_pc), in_level);
+    Logging::trace(
+        "FileDebugInfo: Dwarf DIE {:>{}} tag={}, name={}, addr={}, level={}",
+        "", in_level, tag_name, die_name, (void *)(low_pc), in_level);
 
     // attr list
     {

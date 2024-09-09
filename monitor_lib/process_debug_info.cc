@@ -24,6 +24,8 @@ ProcessDebugInfo::findSourceLocation(addr_t addr) const {
       "ProcessDebugInfo: found source location for addr 0x{:x} in {}@{:x}",
       addr, path, offset);
 
+  // TODO find line number and source path
+
   return {};
 }
 
