@@ -21,6 +21,9 @@ ProcessDebugInfo::findSourceLocation(addr_t addr) const {
     return std::nullopt;
 
   auto [path, offset] = *maybeMapping;
+  Logging::trace("found mapping for address 0x{:x}: {}@0x{:x} (executable: {})",
+                 addr, path, offset, _executable);
+
   if (path != _executable)
     return std::nullopt;
 

@@ -171,14 +171,7 @@ void FileDebugInfo::processDwarfCU(Dwarf_Die &cu_die, const char *die_name,
     }
   } // for lines
 
-  std::ranges::sort(lines, {}, &LineInfo::start);
-
-  for (const auto &line : lines) {
-    Logging::trace("FileDebugInfo: Line - [0x{:<8x}, 0x{:<8x}), {}", line.start,
-                   line.end, line.location);
-  }
-
-  _lines = std::move(lines);
+  _lines.insert(_lines.end(), lines.begin(), lines.end());
 }
 
 void FileDebugInfo::processDwarfDIE(Dwarf_Die &die, Dwarf_Error &error,
@@ -370,6 +363,13 @@ FileDebugInfo::FileDebugInfo(const std::string &path) {
       ::dwarf_dealloc_die(cu_die);
     }
   }
+
+  std::ranges::sort(_lines, {}, &LineInfo::start);
+
+  for (const auto &line : _lines) {
+    Logging::trace("FileDebugInfo: Line - [0x{:<8x}, 0x{:<8x}), {}", line.start,
+                   line.end, line.location);
+  }
 }
 
 FileDebugInfo::~FileDebugInfo() = default;
@@ -386,8 +386,12 @@ std::optional<SourceLocation>
 FileDebugInfo::findSourceLocation(offset_t offset) const {
   auto it = std::ranges::lower_bound(_lines, offset, {}, &LineInfo::start);
   if (it == _lines.end() || it->start > offset || it->end <= offset) {
+    Logging::trace("FileDebugInfo: Source location not found for offset 0x{:x}",
+                   offset);
     return std::nullopt;
   }
+  Logging::trace("FileDebugInfo: Source location found for offset 0x{:x}: {}",
+                 offset, it->location);
   return it->location;
 }
 
