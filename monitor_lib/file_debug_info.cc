@@ -13,8 +13,8 @@ namespace Whiteboard {
 namespace {
 
 template <typename... Args>
-void throw_if_error(int res, Dwarf_Error &error, std::string_view action_fmt,
-                    const Args &...args) {
+void throwIfDwarfError(int res, Dwarf_Error &error, std::string_view action_fmt,
+                       const Args &...args) {
   if (res == DW_DLV_ERROR) {
     std::string action =
         fmt::vformat(action_fmt, fmt::make_format_args(args...));
@@ -34,7 +34,7 @@ FileDebugInfo::getDirs(Dwarf_Line_Context line_context,
   Dwarf_Signed dir_count = 0;
   int res =
       ::dwarf_srclines_include_dir_count(line_context, &dir_count, &error);
-  throw_if_error(res, error, "srclines_include_dir_count");
+  throwIfDwarfError(res, error, "srclines_include_dir_count");
 
   std::vector<std::filesystem::path> dirs;
   dirs.reserve(dir_count);
@@ -42,7 +42,7 @@ FileDebugInfo::getDirs(Dwarf_Line_Context line_context,
   for (int i = 0; i < dir_count; ++i) {
     const char *dname = nullptr;
     res = ::dwarf_srclines_include_dir_data(line_context, i, &dname, &error);
-    throw_if_error(res, error, "srclines_include_dir_data");
+    throwIfDwarfError(res, error, "srclines_include_dir_data");
 
     dirs.emplace_back(dname);
   }
@@ -58,7 +58,7 @@ FileDebugInfo::getFiles(Dwarf_Line_Context line_context, Dwarf_Error &error,
   Dwarf_Signed endindex = 0;
   int res = ::dwarf_srclines_files_indexes(line_context, &baseindex,
                                            &file_count, &endindex, &error);
-  throw_if_error(res, error, "srclines_files_indexes");
+  throwIfDwarfError(res, error, "srclines_files_indexes");
 
   std::vector<std::filesystem::path> files;
   files.reserve(file_count);
@@ -72,7 +72,7 @@ FileDebugInfo::getFiles(Dwarf_Line_Context line_context, Dwarf_Error &error,
 
     res = ::dwarf_srclines_files_data_b(line_context, i, &name, &dirindex,
                                         &modtime, &flength, &md5data, &error);
-    throw_if_error(res, error, "srclines_files_data_b");
+    throwIfDwarfError(res, error, "srclines_files_data_b");
 
     assert(dirindex < dirs.size());
     std::filesystem::path full_path = dirs[dirindex] / name;
@@ -88,15 +88,15 @@ FileDebugInfo::getFiles(Dwarf_Line_Context line_context, Dwarf_Error &error,
   return files;
 }
 
-void FileDebugInfo::process_dwarf_cu(Dwarf_Die &cu_die, const char *die_name,
-                                     Dwarf_Error &error) {
+void FileDebugInfo::processDwarfCU(Dwarf_Die &cu_die, const char *die_name,
+                                   Dwarf_Error &error) {
   Dwarf_Line_Context line_context = 0;
   Dwarf_Small table_count = 0;
   Dwarf_Unsigned lineversion = 0;
 
   int res = ::dwarf_srclines_b(cu_die, &lineversion, &table_count,
                                &line_context, &error);
-  throw_if_error(res, error, "srclines");
+  throwIfDwarfError(res, error, "srclines");
 
   BOOST_SCOPE_EXIT(line_context) { ::dwarf_srclines_dealloc_b(line_context); }
   BOOST_SCOPE_EXIT_END;
@@ -123,15 +123,15 @@ void FileDebugInfo::process_dwarf_cu(Dwarf_Die &cu_die, const char *die_name,
   for (int i = 0; i < linecount; ++i) {
     Dwarf_Unsigned linenum = 0;
     res = ::dwarf_lineno(linebuf[i], &linenum, &error);
-    throw_if_error(res, error, "lineno");
+    throwIfDwarfError(res, error, "lineno");
 
     Dwarf_Unsigned filenum = 0;
     res = ::dwarf_line_srcfileno(linebuf[i], &filenum, &error);
-    throw_if_error(res, error, "line_srcfileno");
+    throwIfDwarfError(res, error, "line_srcfileno");
 
     Dwarf_Addr addr = 0;
     res = ::dwarf_lineaddr(linebuf[i], &addr, &error);
-    throw_if_error(res, error, "lineaddr");
+    throwIfDwarfError(res, error, "lineaddr");
 
     Dwarf_Bool prologue_end = 0;
     Dwarf_Bool epilogue_end = 0;
@@ -140,15 +140,15 @@ void FileDebugInfo::process_dwarf_cu(Dwarf_Die &cu_die, const char *die_name,
 
     res = ::dwarf_prologue_end_etc(linebuf[i], &prologue_end, &epilogue_end,
                                    &isa, &discriminator, &error);
-    throw_if_error(res, error, "prologue_end_etc");
+    throwIfDwarfError(res, error, "prologue_end_etc");
 
     Dwarf_Bool end_sequence = 0;
     res = ::dwarf_lineendsequence(linebuf[i], &end_sequence, &error);
-    throw_if_error(res, error, "lineendsequence");
+    throwIfDwarfError(res, error, "lineendsequence");
 
     Dwarf_Bool begin_statement = 0;
     res = ::dwarf_linebeginstatement(linebuf[i], &begin_statement, &error);
-    throw_if_error(res, error, "linebeginstatement");
+    throwIfDwarfError(res, error, "linebeginstatement");
 
     Logging::trace(
         "FileDebugInfo: Dwarf line i={}, prologue_end={}, "
@@ -181,25 +181,25 @@ void FileDebugInfo::process_dwarf_cu(Dwarf_Die &cu_die, const char *die_name,
   _lines = std::move(lines);
 }
 
-void FileDebugInfo::process_dwarf_die(Dwarf_Die &die, Dwarf_Error &error,
-                                      int in_level) {
+void FileDebugInfo::processDwarfDIE(Dwarf_Die &die, Dwarf_Error &error,
+                                    int in_level) {
 
   // tag
   Dwarf_Half tag = 0;
   int res = ::dwarf_tag(die, &tag, &error);
-  throw_if_error(res, error, "reading tag");
+  throwIfDwarfError(res, error, "reading tag");
 
   // die name
   char *die_name_ptr = nullptr;
   res = ::dwarf_diename(die, &die_name_ptr, &error);
-  throw_if_error(res, error, "reading die name");
+  throwIfDwarfError(res, error, "reading die name");
   if (res == DW_DLV_NO_ENTRY)
     return;
 
   // addr
   Dwarf_Addr low_pc = 0;
   res = ::dwarf_lowpc(die, &low_pc, &error);
-  throw_if_error(res, error, "reading die low_pc");
+  throwIfDwarfError(res, error, "reading die low_pc");
 
   // record function
   // TODO only top level. A proper walker is needed, that builds a name
@@ -217,7 +217,7 @@ void FileDebugInfo::process_dwarf_die(Dwarf_Die &die, Dwarf_Error &error,
   // record compilation unit
   if (tag == DW_TAG_compile_unit) {
     if (die_name_ptr) {
-      process_dwarf_cu(die, die_name_ptr, error);
+      processDwarfCU(die, die_name_ptr, error);
     }
   }
 
@@ -228,7 +228,7 @@ void FileDebugInfo::process_dwarf_die(Dwarf_Die &die, Dwarf_Error &error,
     const char *die_name = die_name_ptr ? die_name_ptr : "(unnamed)";
     const char *tag_name = nullptr;
     res = ::dwarf_get_TAG_name(tag, &tag_name);
-    throw_if_error(res, error, "reading tag name");
+    throwIfDwarfError(res, error, "reading tag name");
 
     Logging::trace(
         "FileDebugInfo: Dwarf DIE {:>{}} tag={}, name={}, addr={}, level={}",
@@ -239,7 +239,7 @@ void FileDebugInfo::process_dwarf_die(Dwarf_Die &die, Dwarf_Error &error,
       Dwarf_Signed atcount;
       Dwarf_Attribute *atlist;
       res = ::dwarf_attrlist(die, &atlist, &atcount, &error);
-      throw_if_error(res, error, "attrrlist");
+      throwIfDwarfError(res, error, "attrrlist");
 
       for (int i = 0; i < atcount; ++i) {
         Dwarf_Half attrnum = 0;
@@ -250,7 +250,7 @@ void FileDebugInfo::process_dwarf_die(Dwarf_Die &die, Dwarf_Error &error,
             returning DW_DLV_ERROR if
             what you call gets DW_DLV_ERROR */
         res = ::dwarf_whatattr(atlist[i], &attrnum, &error);
-        throw_if_error(res, error, "whatattr");
+        throwIfDwarfError(res, error, "whatattr");
         ::dwarf_get_AT_name(attrnum, &attrname);
         fmt::println("{:>{}}  * #{} {} : {}", "", in_level, i, attrnum,
                      attrname);
@@ -262,14 +262,13 @@ void FileDebugInfo::process_dwarf_die(Dwarf_Die &die, Dwarf_Error &error,
   } // dd
 }
 
-void FileDebugInfo::walk_dwarf_die(Dwarf_Debug dbg, Dwarf_Die in_die,
-                                   int is_info, int in_level,
-                                   Dwarf_Error &error) {
+void FileDebugInfo::walkDwarfDIE(Dwarf_Debug dbg, Dwarf_Die in_die, int is_info,
+                                 int in_level, Dwarf_Error &error) {
   int res = DW_DLV_OK;
   Dwarf_Die cur_die = in_die;
   Dwarf_Die child = 0;
 
-  process_dwarf_die(in_die, error, in_level);
+  processDwarfDIE(in_die, error, in_level);
 
   /*   Loop on a list of siblings */
   for (;;) {
@@ -280,17 +279,17 @@ void FileDebugInfo::walk_dwarf_die(Dwarf_Debug dbg, Dwarf_Die in_die,
         to skip the dwarf_child call. We descend
         the DWARF-standard way of depth-first. */
     res = ::dwarf_child(cur_die, &child, &error);
-    throw_if_error(res, error, "dwarf_child");
+    throwIfDwarfError(res, error, "dwarf_child");
 
     if (res == DW_DLV_OK) {
-      walk_dwarf_die(dbg, child, is_info, in_level + 1, error);
+      walkDwarfDIE(dbg, child, is_info, in_level + 1, error);
       /* No longer need 'child' die. */
       ::dwarf_dealloc(dbg, child, DW_DLA_DIE);
       child = 0;
     }
     /* res == DW_DLV_NO_ENTRY or DW_DLV_OK */
     res = dwarf_siblingof_c(cur_die, &sib_die, &error);
-    throw_if_error(res, error, "dwarf_siblingof_c");
+    throwIfDwarfError(res, error, "dwarf_siblingof_c");
 
     if (res == DW_DLV_NO_ENTRY) {
       /* Done at this level. */
@@ -302,7 +301,7 @@ void FileDebugInfo::walk_dwarf_die(Dwarf_Debug dbg, Dwarf_Die in_die,
       cur_die = 0;
     }
     cur_die = sib_die;
-    process_dwarf_die(sib_die, error, in_level);
+    processDwarfDIE(sib_die, error, in_level);
   }
 }
 
@@ -325,7 +324,7 @@ FileDebugInfo::FileDebugInfo(const std::string &path) {
   }
   BOOST_SCOPE_EXIT_END
 
-  throw_if_error(res, error, "loading debug info from '{}'", path);
+  throwIfDwarfError(res, error, "loading debug info from '{}'", path);
   if (res == DW_DLV_NO_ENTRY) {
     return;
   }
@@ -354,7 +353,7 @@ FileDebugInfo::FileDebugInfo(const std::string &path) {
           &abbrev_offset, &address_size, &offset_size, &extension_size,
           &signature, &typeoffset, &next_cu_header, &header_cu_type, &error);
 
-      throw_if_error(res, error, "walking '{}'", path);
+      throwIfDwarfError(res, error, "walking '{}'", path);
 
       if (res == DW_DLV_NO_ENTRY) {
         if (is_info == 1) {
@@ -367,7 +366,7 @@ FileDebugInfo::FileDebugInfo(const std::string &path) {
       }
 
       // we have a DIE
-      walk_dwarf_die(dbg, cu_die, is_info, 0, error);
+      walkDwarfDIE(dbg, cu_die, is_info, 0, error);
       ::dwarf_dealloc_die(cu_die);
     }
   }

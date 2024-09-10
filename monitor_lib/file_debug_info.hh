@@ -35,11 +35,11 @@ private:
     SourceLocation location;
   };
 
-  void process_dwarf_die(Dwarf_Die &die, Dwarf_Error &error, int in_level);
-  void process_dwarf_cu(Dwarf_Die &cu_die, const char *die_name,
-                        Dwarf_Error &error);
-  void walk_dwarf_die(Dwarf_Debug dbg, Dwarf_Die in_die, int is_info,
-                      int in_level, Dwarf_Error &error);
+  void processDwarfDIE(Dwarf_Die &die, Dwarf_Error &error, int in_level);
+  void processDwarfCU(Dwarf_Die &cu_die, const char *die_name,
+                      Dwarf_Error &error);
+  void walkDwarfDIE(Dwarf_Debug dbg, Dwarf_Die in_die, int is_info,
+                    int in_level, Dwarf_Error &error);
 
   std::vector<std::filesystem::path> getDirs(Dwarf_Line_Context line_context,
                                              Dwarf_Error &error) const;
