@@ -29,6 +29,9 @@ int main(int argc, char **argv) {
   Whiteboard::Word64 mainStackTop;
 
   auto state = m.cont();
+  std::optional<Whiteboard::SourceLocation> lastLocation;
+  unsigned instructions = 0;
+
   while (m.isRunning()) {
     fmt::print("process stopped\n");
     if (state.reason == Whiteboard::Monitor::StopReason::Breakpoint) {
@@ -39,15 +42,44 @@ int main(int argc, char **argv) {
       // read the stack pointer
       auto registers = m.registers();
       mainStackTop = registers[Whiteboard::Registers::Names::SP];
+      fmt::println("main stack top: {}", mainStackTop);
 
-      auto maybeLocation = m.currentSourceLocation();
-      if (maybeLocation) {
-        fmt::println("at loc: {}", *maybeLocation);
+      // iterate over the instructions, until leaving stack
+      while (true) {
+
+        registers = m.registers();
+        // have we left stack?
+        auto sp = registers[Whiteboard::Registers::Names::SP];
+        Whiteboard::Logging::trace("instruction #{}, SP={}, main stack top={}",
+                                   instructions, sp, mainStackTop);
+        if (sp > mainStackTop) {
+          fmt::println("EVENT main completed, SP={}", sp);
+          break;
+        }
+
+        // see if source location changed
+        auto maybeLocation = m.currentSourceLocation();
+        if (maybeLocation) {
+          Whiteboard::Logging::trace("source loc: {}", *maybeLocation);
+          if (!lastLocation || *lastLocation != *maybeLocation) {
+            fmt::println("EVENT: source loc: {}", *maybeLocation);
+            lastLocation = *maybeLocation;
+          }
+        }
+
+        ++instructions;
+        auto stopState = m.stepi();
+        if (stopState.reason == Whiteboard::Monitor::StopReason::Finished) {
+          Whiteboard::Logging::debug("Process finished without leaving main");
+          break;
+        }
       }
     }
-    std::this_thread::sleep_for(2s);
-    state = m.cont();
+    if (m.isRunning()) {
+      state = m.cont();
+    }
   }
 
-  fmt::print("Process {} finished\n", executable);
+  fmt::println("Process {} finished. Processed {} instructions", executable,
+               instructions);
 }

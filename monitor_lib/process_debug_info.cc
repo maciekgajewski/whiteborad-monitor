@@ -16,13 +16,13 @@ addr_t ProcessDebugInfo::findFunction(const std::string &fname) const {
 std::optional<SourceLocation>
 ProcessDebugInfo::findSourceLocation(addr_t addr) const {
 
-  auto [path, offset] = _maps.findFileAndOffsetByAddress(addr);
-  if (path != _executable)
+  auto maybeMapping = _maps.tryFindFileAndOffsetByAddress(addr);
+  if (!maybeMapping)
     return std::nullopt;
 
-  Logging::trace(
-      "ProcessDebugInfo: found source location for addr 0x{:x} in {}@{:x}",
-      addr, path, offset);
+  auto [path, offset] = *maybeMapping;
+  if (path != _executable)
+    return std::nullopt;
 
   return _executableDebugInfo.findSourceLocation(offset);
 }

@@ -60,6 +60,19 @@ std::uint64_t MemMaps::findAddressByOffset(const std::string &path,
 
 std::tuple<std::string, uint64_t>
 MemMaps::findFileAndOffsetByAddress(std::uint64_t addr) const {
+
+  auto maybeResult = tryFindFileAndOffsetByAddress(addr);
+
+  if (!maybeResult) {
+    throw std::runtime_error(
+        fmt::format("Address {:x} not found in any mapping", addr));
+  } else {
+    return *maybeResult;
+  }
+}
+
+std::optional<std::tuple<std::string, uint64_t>>
+MemMaps::tryFindFileAndOffsetByAddress(std::uint64_t addr) const noexcept {
   for (const Mapping &mapping : _mappings) {
     if (addr >= mapping.low && addr < mapping.high) {
       auto offset = mapping.offset + (addr - mapping.low);
@@ -67,8 +80,7 @@ MemMaps::findFileAndOffsetByAddress(std::uint64_t addr) const {
     }
   }
 
-  throw std::runtime_error(
-      fmt::format("Address {:x} not found in any mapping", addr));
+  return std::nullopt;
 }
 
 } // namespace Whiteboard

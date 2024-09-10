@@ -67,7 +67,7 @@ Monitor::StopState Monitor::wait() {
   int wstatus;
   ::waitpid(_childPid, &wstatus, 0);
   if (!WIFSTOPPED(wstatus)) {
-    fmt::print("child finished\n", wstatus);
+    Logging::debug("Monitor: child finished: {}", wstatus);
     _running = false;
     state.reason = StopReason::Finished;
   } else {
@@ -75,13 +75,13 @@ Monitor::StopState Monitor::wait() {
     // read registers
     ::user_regs_struct regs;
     ::ptrace(PTRACE_GETREGS, _childPid, 0, &regs);
-    fmt::print("stopped, RIP=0x{:x}\n", regs.rip);
+    Logging::trace("Monitor: stopped, RIP=0x{:x}", regs.rip);
 
     auto it =
         std::find_if(_breakpoints.begin(), _breakpoints.end(),
                      [&](auto &bptr) { return bptr.addr == regs.rip - 1; });
     if (it != _breakpoints.end()) {
-      fmt::print("breakpoint hit, oid={}\n", it->id);
+      Logging::debug("Monitor: breakpoint hit, id={}", it->id);
       state.reason = StopReason::Breakpoint;
       state.breakpoint = it->id;
 
@@ -118,8 +118,7 @@ void Monitor::breakAtFunction(const std::string &fname, breakpoint_id bid) {
 
 void Monitor::addBreakpoint(addr_t addr, breakpoint_id bid) {
 
-  // debug
-  fmt::println("Adding bp at address 0x{:x}", addr);
+  Logging::debug("Monitor: Adding bp at address 0x{:x}", addr);
 
   long data = ::ptrace(PTRACE_PEEKTEXT, _childPid, (void *)addr, nullptr);
   if (data == -1) {
@@ -134,9 +133,9 @@ void Monitor::addBreakpoint(addr_t addr, breakpoint_id bid) {
 
   Word64 w(data);
   w.set8(0, 0xcc);
-  fmt::print(
-      "setting bp at addr=0x{:x}, original data=0x{:x}, modified=0x{:x}\n",
-      bp.addr, bp.originalData, w.get64());
+  Logging::trace("Monitor: Setting bp at addr=0x{:x}, original data=0x{:x}, "
+                 "modified=0x{:x}",
+                 bp.addr, bp.originalData, w.get64());
 
   if (::ptrace(PTRACE_POKETEXT, _childPid, (void *)bp.addr, w.get64())) {
     throw std::runtime_error(fmt::format(

@@ -2,6 +2,7 @@
 
 #include <fmt/format.h>
 
+#include <compare>
 #include <string>
 
 namespace Whiteboard {
@@ -13,6 +14,8 @@ public:
 
   const std::string file() const { return _file; }
   int line() const { return _line; }
+
+  constexpr auto operator<=>(const SourceLocation &) const = default;
 
 private:
   std::string _file;

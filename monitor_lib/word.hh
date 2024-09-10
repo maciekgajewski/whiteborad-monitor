@@ -1,5 +1,8 @@
 #pragma once
 
+#include <fmt/format.h>
+
+#include <compare>
 #include <cstdint>
 #include <cstring>
 
@@ -18,8 +21,18 @@ public:
 
   std::uint8_t *bytes() { return reinterpret_cast<std::uint8_t *>(&_data); }
 
+  constexpr auto operator<=>(const Word64 &) const = default;
+
 private:
   std::uint64_t _data = 0;
 };
 
-}; // namespace Whiteboard
+} // namespace Whiteboard
+
+template <> struct fmt::formatter<Whiteboard::Word64> {
+  constexpr auto parse(format_parse_context &ctx) { return ctx.begin(); }
+
+  auto format(const Whiteboard::Word64 &v, format_context &ctx) const {
+    return fmt::format_to(ctx.out(), "0x{:<08x}", v.get64());
+  }
+};
