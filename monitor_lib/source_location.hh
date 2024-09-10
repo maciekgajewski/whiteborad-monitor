@@ -8,6 +8,9 @@ namespace Whiteboard {
 
 class SourceLocation {
 public:
+  SourceLocation(const std::string &file, int line)
+      : _file(file), _line(line) {}
+
   const std::string file() const { return _file; }
   int line() const { return _line; }
 

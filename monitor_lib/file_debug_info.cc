@@ -6,6 +6,8 @@
 
 #include <fmt/core.h>
 
+#include <ranges>
+
 namespace Whiteboard {
 
 namespace {
@@ -26,12 +28,68 @@ constexpr bool debug_dump = false;
 
 } // namespace
 
+std::vector<std::filesystem::path>
+FileDebugInfo::getDirs(Dwarf_Line_Context line_context,
+                       Dwarf_Error &error) const {
+  Dwarf_Signed dir_count = 0;
+  int res =
+      ::dwarf_srclines_include_dir_count(line_context, &dir_count, &error);
+  throw_if_error(res, error, "srclines_include_dir_count");
+
+  std::vector<std::filesystem::path> dirs;
+  dirs.reserve(dir_count);
+
+  for (int i = 0; i < dir_count; ++i) {
+    const char *dname = nullptr;
+    res = ::dwarf_srclines_include_dir_data(line_context, i, &dname, &error);
+    throw_if_error(res, error, "srclines_include_dir_data");
+
+    dirs.emplace_back(dname);
+  }
+
+  return dirs;
+}
+
+std::vector<std::filesystem::path>
+FileDebugInfo::getFiles(Dwarf_Line_Context line_context, Dwarf_Error &error,
+                        const std::vector<std::filesystem::path> &dirs) const {
+  Dwarf_Signed baseindex = 0;
+  Dwarf_Signed file_count = 0;
+  Dwarf_Signed endindex = 0;
+  int res = ::dwarf_srclines_files_indexes(line_context, &baseindex,
+                                           &file_count, &endindex, &error);
+  throw_if_error(res, error, "srclines_files_indexes");
+
+  std::vector<std::filesystem::path> files;
+  files.reserve(file_count);
+
+  for (int i = baseindex; i < endindex; i++) {
+    Dwarf_Unsigned dirindex = 0;
+    Dwarf_Unsigned modtime = 0;
+    Dwarf_Unsigned flength = 0;
+    Dwarf_Form_Data16 *md5data = 0;
+    const char *name = 0;
+
+    res = ::dwarf_srclines_files_data_b(line_context, i, &name, &dirindex,
+                                        &modtime, &flength, &md5data, &error);
+    throw_if_error(res, error, "srclines_files_data_b");
+
+    assert(dirindex < dirs.size());
+    std::filesystem::path full_path = dirs[dirindex] / name;
+
+    Logging::trace("FileDebugInfo: Dwarf file i={}, name={}, dirindex={}, "
+                   "modtime={}, flength={}, md5data={}, full_path={}",
+                   i, name, dirindex, modtime, flength, (void *)md5data,
+                   full_path.string());
+
+    files.push_back(full_path);
+  }
+
+  return files;
+}
+
 void FileDebugInfo::process_dwarf_cu(Dwarf_Die &cu_die, const char *die_name,
                                      Dwarf_Error &error) {
-  // Dwarf_Line *linebuf = 0;
-  // Dwarf_Signed linecount = 0;
-  // Dwarf_Line *linebuf_actuals = 0;
-  // Dwarf_Signed linecount_actuals = 0;
   Dwarf_Line_Context line_context = 0;
   Dwarf_Small table_count = 0;
   Dwarf_Unsigned lineversion = 0;
@@ -49,48 +107,18 @@ void FileDebugInfo::process_dwarf_cu(Dwarf_Die &cu_die, const char *die_name,
   if (table_count != 1)
     return; // TODO action needed?
 
-  // iterate files
-  Dwarf_Signed baseindex = 0;
-  Dwarf_Signed file_count = 0;
-  Dwarf_Signed endindex = 0;
-  res = ::dwarf_srclines_files_indexes(line_context, &baseindex, &file_count,
-                                       &endindex, &error);
-  throw_if_error(res, error, "srclines_files_indexes");
-
-  for (int i = baseindex; i < endindex; i++) {
-    Dwarf_Unsigned dirindex = 0;
-    Dwarf_Unsigned modtime = 0;
-    Dwarf_Unsigned flength = 0;
-    Dwarf_Form_Data16 *md5data = 0;
-    const char *name = 0;
-
-    res = ::dwarf_srclines_files_data_b(line_context, i, &name, &dirindex,
-                                        &modtime, &flength, &md5data, &error);
-    throw_if_error(res, error, "srclines_files_data_b");
-
-    Logging::trace("FileDebugInfo: Dwarf files data: i={}, dirindex={}, "
-                   "modtime={}, flength={}, name={}",
-                   i, dirindex, modtime, flength, name);
-  }
-
-  // iterate dirs
-  Dwarf_Signed dw_count = 0;
-  res = ::dwarf_srclines_include_dir_count(line_context, &dw_count, &error);
-  throw_if_error(res, error, "srclines_include_dir_count");
-
-  for (int i = 0; i < dw_count; ++i) {
-    const char *dname = nullptr;
-    res = ::dwarf_srclines_include_dir_data(line_context, i, &dname, &error);
-    throw_if_error(res, error, "srclines_include_dir_data");
-
-    Logging::trace("FileDebugInfo: Dwarf dir i={} name={}", i, dname);
-  }
+  std::vector<std::filesystem::path> dirs = getDirs(line_context, error);
+  std::vector<std::filesystem::path> files =
+      getFiles(line_context, error, dirs);
 
   // iterate lines
   Dwarf_Line *linebuf = 0;
   Dwarf_Signed linecount = 0;
   res = ::dwarf_srclines_from_linecontext(line_context, &linebuf, &linecount,
                                           &error);
+
+  std::vector<LineInfo> lines;
+  lines.reserve(linecount);
 
   for (int i = 0; i < linecount; ++i) {
     Dwarf_Unsigned linenum = 0;
@@ -128,7 +156,29 @@ void FileDebugInfo::process_dwarf_cu(Dwarf_Die &cu_die, const char *die_name,
         "linenum={}, filenum={}, addr=0x{:<8x}",
         i, prologue_end, epilogue_end, isa, discriminator, end_sequence,
         linenum, filenum, addr);
+
+    if (end_sequence) {
+      // simply complete the last record
+      assert(!lines.empty());
+      assert(lines.back().end == 0);
+      lines.back().end = addr;
+    } else {
+      if (!lines.empty() && lines.back().end == 0) {
+        lines.back().end = addr;
+      }
+      lines.push_back(LineInfo{
+          addr, 0, SourceLocation{files[filenum].string(), int(linenum)}});
+    }
+  } // for lines
+
+  std::ranges::sort(lines, {}, &LineInfo::start);
+
+  for (const auto &line : lines) {
+    Logging::trace("FileDebugInfo: Line - [0x{:<8x}, 0x{:<8x}), {}", line.start,
+                   line.end, line.location);
   }
+
+  _lines = std::move(lines);
 }
 
 void FileDebugInfo::process_dwarf_die(Dwarf_Die &die, Dwarf_Error &error,
@@ -258,8 +308,6 @@ void FileDebugInfo::walk_dwarf_die(Dwarf_Debug dbg, Dwarf_Die in_die,
 
 FileDebugInfo::FileDebugInfo(const std::string &path) {
 
-  // TODO use libdwarf to populate
-
   static char true_pathbuf[FILENAME_MAX];
   unsigned tpathlen = FILENAME_MAX;
   Dwarf_Handler errhand = 0;
@@ -281,8 +329,6 @@ FileDebugInfo::FileDebugInfo(const std::string &path) {
   if (res == DW_DLV_NO_ENTRY) {
     return;
   }
-  // fmt::print("FileDebugInfo: The file we actually opened is {}\n",
-  //            true_pathbuf);
 
   // walk the tree
   {
@@ -335,6 +381,15 @@ offset_t FileDebugInfo::findFunction(const std::string &fname) const {
     throw std::runtime_error(fmt::format("Function '{}' not found", fname));
   }
   return it->second;
+}
+
+std::optional<SourceLocation>
+FileDebugInfo::findSourceLocation(offset_t offset) const {
+  auto it = std::ranges::lower_bound(_lines, offset, {}, &LineInfo::start);
+  if (it == _lines.end() || it->start > offset || it->end <= offset) {
+    return std::nullopt;
+  }
+  return it->location;
 }
 
 } // namespace Whiteboard
