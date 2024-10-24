@@ -1,0 +1,8 @@
+{
+    "2024-10-24": {
+        "intel-xed": {
+            "baseline": "v2024.09.09",
+            "port-version": 0
+        }
+    }
+}

@@ -3,6 +3,7 @@
         "fmt",
         "boost-filesystem",
         "boost-scope-exit",
-        "libdwarf"
+        "libdwarf",
+        "intel-xed"
     ]
 }

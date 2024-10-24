@@ -1,0 +1,5 @@
+{
+    "name": "intel-xed",
+    "version": "v2024.09.09",
+    "description": "The XED project is a software library for encoding, decoding, disassembling, and reassembling x86 instructions."
+}
